@@ -1,0 +1,21 @@
+{
+  "name": "bestiola",
+  "version": "0.0.1",
+  "authors": [
+    "Giacomo Marinangeli <giacomo@cloudacademy.com>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "polymer": "Polymer/polymer#^1.2.3",
+    "iron-input": "PolymerElements/iron-input#~1.0.7",
+    "moment": "~2.10.6"
+  }
+}

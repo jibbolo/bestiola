@@ -1,0 +1,30 @@
+<link rel="import"
+      href="bower_components/polymer/polymer.html">
+
+
+<dom-module id="user">
+
+  <template>
+    <iron-ajax auto
+          url="/api/users"
+          handle-as="json"
+          last-response="{{ajaxResponse}}"></iron-ajax>
+
+    <h1>
+      {{user}}
+    </h1>
+  </template>
+
+  <script>
+    Polymer({
+      is: "user",
+      properties: {
+        owner: {
+          type: String,
+          value: "Daniel"
+        }
+      }
+    });
+  </script>
+
+</dom-module>
