@@ -2,17 +2,15 @@
 <html>
   <head>
   	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <script src="assets/jquery.min.js"></script>
-    <script src="assets/bower_components/moment/moment.js"></script>
-    <script src="http://malsup.github.com/jquery.form.js"></script> 
+    <script src="/assets/jquery.min.js"></script>
+    <script src="/assets/moment.js"></script>
+    <script src="/assets/jquery.form.js"></script> 
     <link href='https://fonts.googleapis.com/css?family=Roboto:400,500,300,300italic,400italic,500italic' rel='stylesheet' type='text/css'>
   </head>
   <style type="text/css">
   body {font-family: 'Roboto', sans-serif;}
-
   .user,
   #matches > div,
-  #pool,
   #details > a,
   #new-match,
   #new {
@@ -24,15 +22,31 @@
   	color:#102B0F;
   	box-shadow: 0px 0px 15px #ccc;
   }
-  #matches,#users,#players {clear:both;}
+  #matches,#players,#sep {clear:both;}
+  #sep {
+    height:20px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid #ccc;
+  }
   #matches > div {
   	background: #F3F1BD;
   }
   #pool {
     background: #F36148;
+    padding:20px;
+    font-size: 30px;
+    color:white;
+    text-align: center;
+    margin-bottom: 30px ;
   }
   .user,
   #matches > div {cursor:pointer;}
+
+  #matches > div a,
+  .user a {
+    text-decoration: none;
+    color:red;
+  }
 
   .user.uno {
       background: #B90203;
@@ -60,7 +74,9 @@
     content: " - Vinte 3";
   }
 
-  #details {display: none;}
+  #details {
+    display: none;
+  }
 
   #details > a {
     text-decoration: none;
@@ -69,6 +85,7 @@
   #new-match {
     text-decoration: none;
     background:#FFC609;
+    display: none;
   }
   #users .user.selected {
     background: #81D1FF;
@@ -86,7 +103,7 @@
       var details = $("#details");
   		function loadUsers(){
 	  		users.html("");
-	  		$.getJSON("/api/users",function(response){
+	  		$.getJSON("/api/users/",function(response){
 	  			response.forEach(function(u){
 	  				users.append(NewUser(u,false));
 	  			});
@@ -97,16 +114,19 @@
         text = u.Name;
         if (showAmount && u.Amount!=undefined) {
           text += " <strong>"+u.Amount+"</strong>";
+        } else {
+          text += " <a href='#'>&#10007;</a>";
         }
         return $("<div>").addClass("user").data("clicks",0).html(text).data("user_id",u.ID);
       }
 
 	  	function loadMatches(){
 	  		matches.html("");
-	  		$.getJSON("/api/matches",function(response){
+	  		$.getJSON("/api/matches/",function(response){
 	  			response.forEach(function(m){
-	  				d = moment(m.CreatedAt)
-	  				var nm = $("<div>").text(d.calendar()+" ("+m.Players.length+")").data("match_id",m.ID);
+	  				var d = moment(m.CreatedAt)
+            var text = d.calendar()+" ("+m.Players.length+") <a href='#'>&#10007;</a>";
+	  				var nm = $("<div>").html(text).data("match_id",m.ID);
 	  				matches.append(nm);
 	  			});
 	  		});
@@ -133,8 +153,8 @@
   		loadMatches();
 
   		$('#new-user').ajaxForm({
-		    success: function() { 
-		        loadUsers();
+		    success: function(u) { 
+		        users.append(NewUser(u,false));
 		        $('#name').val("");
 		    },
 		    error: function(data) { 
@@ -142,14 +162,15 @@
 		    }
   		}); 
 
-  		users.on("dblclick","div",function(){
+  		users.on("click",".user a",function(){
+        var utd = $(this).parent();
   			if(!confirm("Are you sure you want to delete it?")) {return;}
-  			var user_id = $(this).data("user_id");
+  			var user_id = utd.data("user_id");
   			$.ajax({
   				url:"/api/users/"+user_id,
   				method:"DELETE",
   				success:function(){
-	  				loadUsers();
+	  				utd.detach();
 	  			}
   			});
   		});
@@ -159,14 +180,15 @@
         loadMatch(match_id);
       });
 
-  		matches.on("dblclick","div",function(){
+  		matches.on("click","div a",function(){
+        var mtd = $(this).parent();
   			if(!confirm("Are you sure you want to delete it?")) {return;}
-  			var match_id = $(this).data("match_id");
+  			var match_id = mtd.data("match_id");
   			$.ajax({
   				url:"/api/matches/"+match_id,
   				method:"DELETE",
   				success:function(){
-	  				loadMatches();
+	  				mtd.detach();
 	  			}
   			});
   		});
@@ -229,9 +251,18 @@
           });
         }
       });
+
       users.on("click",".user",function(){
         $(this).toggleClass("selected");
+
+        if($("#users .user.selected").length>0) {
+          $("#new-match").show();
+        } else {
+          $("#new-match").hide();
+        }
       });
+
+
       $("#new-match").click(function(){
         var user_ids=[];
         $("#users .user.selected").each(function(i,u){
@@ -251,11 +282,12 @@
       <div id="pool">Bestia: <strong></strong></div>
       <div id="players"></div>
       <a href="#" id="conta">Conta</a>
+      <div id="sep"></div>
     </div>
   	<div id="matches"></div>
   	<div id="users"></div>
   	<div id="new">
-	  	<form id="new-user" action="/api/users" method="post">
+	  	<form id="new-user" action="/api/users/" method="post">
 	  		<input id="name" type="text" name="name" placeholder="Name for new player"/>
 	  	</form>
   	</div>
