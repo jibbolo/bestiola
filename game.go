@@ -3,29 +3,27 @@ package main
 import (
 	"fmt"
 	"log"
-	"time"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
-
 const COIN = 10
 
-
 type Match struct {
-	ID      	int
-	Players 	[]*User `gorm:"many2many:match_players;"`
-	CreatedAt   time.Time
-	Pool    	int
+	ID        int
+	Players   []*User `gorm:"many2many:match_players;"`
+	CreatedAt time.Time
+	Pool      int
 }
 
 func NewMatch(players ...*User) (*Match, error) {
 	m := &Match{
-		Players: players,
+		Players:   players,
 		CreatedAt: time.Now(),
-		Pool:    0,
+		Pool:      0,
 	}
 	if err := db.Create(m).Error; err != nil {
 		return nil, err
@@ -40,6 +38,15 @@ func (m *Match) PrintStatus() {
 		fmt.Printf("%v:\t%v\n", p.Name, p.Amount)
 	}
 	fmt.Println("--------------")
+}
+
+func (m *Match) GetPlayer(user_id int) (*User, bool) {
+	for _, p := range m.Players {
+		if user_id == p.ID {
+			return p, true
+		}
+	}
+	return nil, false
 }
 
 func (m *Match) SetPool() {
@@ -85,8 +92,9 @@ func (m *Match) NewHand(plays ...Play) {
 			log.Printf("%v loses: %v Bestia!!", p, handPool)
 		} else {
 			if winners != 3 {
-				p.Amount += int(float64(handPool) / 3 * float64(w))
-				log.Printf("%v wins (%v): %v", p, w, handPool/3*w)
+				delta := int(float64(handPool) / 3 * float64(w))
+				p.Amount += delta
+				log.Printf("%v wins (%v): %v", p, w, delta)
 			} else {
 				log.Printf("%v patta", p)
 			}
@@ -97,18 +105,17 @@ func (m *Match) NewHand(plays ...Play) {
 	db.Save(&m)
 }
 
-
 func attachMatchAPI(router *gin.Engine) {
 	api := router.Group("/api/matches")
 	{
 		api.POST("/", func(c *gin.Context) {
 
 			var form struct {
-				UserIDs []int `form:"users" binding:"required"`
+				UserIDs []int `form:"users[]" binding:"required"`
 			}
 			if c.Bind(&form) == nil {
 				var users []*User
-				if err := db.Where(form.UserIDs).Find(&users).Error; err!=nil {
+				if err := db.Where(form.UserIDs).Find(&users).Error; err != nil {
 					c.String(http.StatusBadRequest, err.Error())
 					return
 				}
@@ -132,58 +139,57 @@ func attachMatchAPI(router *gin.Engine) {
 		})
 
 		api.GET("/:id", func(c *gin.Context) {
-	        m_id, _ := strconv.Atoi(c.Param("id"))
-	        var match Match
-	        if err := db.Preload("Players").Where("ID = ?", m_id).First(&match).Error; err != nil {
-	        	c.String(http.StatusBadRequest, err.Error())
-	        	return
-	        }
-	        c.JSON(http.StatusOK, match)
-	    })
+			m_id, _ := strconv.Atoi(c.Param("id"))
+			var match Match
+			if err := db.Preload("Players").Where("ID = ?", m_id).First(&match).Error; err != nil {
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
+			c.JSON(http.StatusOK, match)
+		})
 
 		api.DELETE("/:id", func(c *gin.Context) {
-	        m_id, _ := strconv.Atoi(c.Param("id"))
-	        var match Match
-	        if err := db.Where("ID = ?", m_id).First(&match).Error; err != nil {
-	        	c.String(http.StatusBadRequest, err.Error())
-	        	return
-	        }
-	        db.Delete(match)
-	        c.String(http.StatusOK, "Deleted")
-	    })
+			m_id, _ := strconv.Atoi(c.Param("id"))
+			var match Match
+			if err := db.Where("ID = ?", m_id).First(&match).Error; err != nil {
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
+			db.Delete(match)
+			c.String(http.StatusOK, "Deleted")
+		})
 
-	    api.POST("/:id", func(c *gin.Context) {
+		api.POST("/:id", func(c *gin.Context) {
 
-	    	var form struct {
-				Plays []struct{
+			var form struct {
+				Plays []struct {
 					UserID int `json:"user_id" binding:"required"`
-					Won int `json:"won" binding:"required"`
+					Won    int `json:"won" binding:"required"`
 				} `json:"plays" binding:"required"`
 			}
 
-	        m_id, _ := strconv.Atoi(c.Param("id"))
-	        var match Match
-	        if err := db.Where("ID = ?", m_id).First(&match).Error; err != nil {
-	        	c.String(http.StatusBadRequest, err.Error())
-	        	return
-	        }
+			m_id, _ := strconv.Atoi(c.Param("id"))
+			var match Match
+			if err := db.Preload("Players").Where("ID = ?", m_id).First(&match).Error; err != nil {
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
 
-	        if c.Bind(&form) == nil {
+			if c.Bind(&form) == nil {
 
-	        	var plays []Play
-	        	for _, p := range form.Plays{
-	        		var user User
-	        		db.Where("ID = ?", p.UserID).First(&user)
-	        		plays = append(plays,user.Win(p.Won))
-	        	}
-	        	match.NewHand(plays...)
+				var plays []Play
+				for _, p := range form.Plays {
+					if user, ok := match.GetPlayer(p.UserID); ok == true {
+						plays = append(plays, user.Win(p.Won))
+					}
+				}
+				match.NewHand(plays...)
 				c.JSON(http.StatusOK, "ok")
 				return
 			}
 
-	        c.JSON(http.StatusBadRequest, "not ok")
-	    })
+			c.JSON(http.StatusBadRequest, "not ok")
+		})
 
 	}
 }
-

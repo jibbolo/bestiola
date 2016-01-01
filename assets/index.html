@@ -14,6 +14,7 @@
   #matches > div,
   #pool,
   #details > a,
+  #new-match,
   #new {
   	display:block;
   	float:left;
@@ -21,9 +22,9 @@
   	padding:10px;
   	background: #CAE2E0;
   	color:#102B0F;
-  	box-shadow: 3px 3px 10px #888;
+  	box-shadow: 0px 0px 15px #ccc;
   }
-  #matches,#users {clear:both;}
+  #matches,#users,#players {clear:both;}
   #matches > div {
   	background: #F3F1BD;
   }
@@ -65,12 +66,21 @@
     text-decoration: none;
     background:#FFC609;
   }
+  #new-match {
+    text-decoration: none;
+    background:#FFC609;
+  }
+  #users .user.selected {
+    background: #81D1FF;
+  }
   </style>
   <script type="text/javascript">
 
   	
 
   	$(document).ready(function(){
+      var users = [];
+      var plays = {};
   		var users = $("#users");
   		var matches = $("#matches");
       var details = $("#details");
@@ -103,6 +113,7 @@
 	  	}
 
       function matchDetails(match){
+        details.data("match-id",match.ID);
         players = details.find("#players");
         players.html("");
         match.Players.forEach(function(u){
@@ -110,6 +121,12 @@
         });
         details.find("#pool > strong").text(match.Pool);
         details.show();
+      }
+
+      function loadMatch(match_id){
+        $.getJSON("/api/matches/"+match_id,function(data){
+            matchDetails(data);  
+        });
       }
 
   		loadUsers();
@@ -139,9 +156,7 @@
 
       matches.on("click","div",function(){
         var match_id = $(this).data("match_id");
-        $.getJSON("/api/matches/"+match_id,function(data){
-            matchDetails(data);  
-        });
+        loadMatch(match_id);
       });
 
   		matches.on("dblclick","div",function(){
@@ -159,6 +174,8 @@
 
       $("#players").on("click",".user",function(){
         cc = $(this).data("clicks");
+        uid = $(this).data("user_id");
+
         if(cc==4){
           cc=0;
         }
@@ -177,12 +194,60 @@
         }else if (cc == 4){
           $(this).addClass("quattro");
         }
-      });
 
+        plays[uid]=cc;        
+
+      });
+      $("#conta").click(function(){
+        var match_id = details.data("match-id");
+        p = [];
+        for(var uid in plays){
+          val = plays[uid];
+          val -=1;
+          if (val >= 0) {
+            p.push({
+              "user_id":parseInt(uid),
+              "won":val,
+            });
+          }
+        }
+        plays = {};
+        if(p.length>0){
+          $.ajax({
+              contentType: 'application/json',
+              data: JSON.stringify({"plays":p}),
+              dataType: 'json',
+              success: function(){
+                loadMatch(match_id);
+              },
+              error: function(){
+                  console.log("Device control failed");
+              },
+              processData: false,
+              type: 'POST',
+              url: "/api/matches/"+match_id
+          });
+        }
+      });
+      users.on("click",".user",function(){
+        $(this).toggleClass("selected");
+      });
+      $("#new-match").click(function(){
+        var user_ids=[];
+        $("#users .user.selected").each(function(i,u){
+          user_ids.push(parseInt($(u).data("user_id")));
+        });
+        if(user_ids.length>0){
+          $.post("/api/matches",{"users":user_ids},function(){
+            loadMatches();
+            $("#users .user.selected").removeClass("selected");
+          });
+        }
+      });
   	});
   </script>
   <body>
-    <div id="details">
+    <div id="details" data-match-id="">
       <div id="pool">Bestia: <strong></strong></div>
       <div id="players"></div>
       <a href="#" id="conta">Conta</a>
@@ -194,6 +259,8 @@
 	  		<input id="name" type="text" name="name" placeholder="Name for new player"/>
 	  	</form>
   	</div>
+
+    <a href="#" id="new-match">Nuova Partita</a>
   	
   </body>	
 </html>
