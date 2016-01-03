@@ -16,7 +16,7 @@ func init() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	db.AutoMigrate(&User{}, &Match{})
+	db.AutoMigrate(&User{}, &Match{}, &Movement{})
 }
 
 func main() {

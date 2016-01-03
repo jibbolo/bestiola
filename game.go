@@ -51,10 +51,21 @@ func (m *Match) GetPlayer(user_id int) (*User, bool) {
 
 func (m *Match) SetPool() {
 	m.Pool = len(m.Players) * COIN
+	now := time.Now()
 	for _, p := range m.Players {
-		p.Amount -= COIN
+		p.SetAmount(m, -COIN, now)
 	}
 	log.Printf("Pool set %v", m.Pool)
+}
+
+type Movement struct {
+	ID      int
+	Match   *Match
+	MatchID int
+	User    *User
+	UserID  int
+	Amount  int
+	Date    time.Time
 }
 
 type Play struct {
@@ -70,6 +81,7 @@ func (m *Match) NewHand(plays ...Play) {
 
 	handPool := m.Pool
 	wonMap := make(map[*User]int)
+	now := time.Now()
 
 	var winners int
 
@@ -87,13 +99,13 @@ func (m *Match) NewHand(plays ...Play) {
 	}
 	for p, w := range wonMap {
 		if w == 0 {
-			p.Amount -= handPool
+			p.SetAmount(m, -handPool, now)
 			m.Pool += handPool
 			log.Printf("%v loses: %v Bestia!!", p, handPool)
 		} else {
 			if winners != 3 {
 				delta := int(float64(handPool) / 3 * float64(w))
-				p.Amount += delta
+				p.SetAmount(m, delta, now)
 				log.Printf("%v wins (%v): %v", p, w, delta)
 			} else {
 				log.Printf("%v patta", p)
@@ -138,10 +150,22 @@ func attachMatchAPI(router *gin.Engine) {
 			c.JSON(http.StatusOK, matches)
 		})
 
+		api.GET("/:id/movements", func(c *gin.Context) {
+			m_id, _ := strconv.Atoi(c.Param("id"))
+			var match Match
+			if err := db.Preload("Players").First(&match, m_id).Error; err != nil {
+				c.String(http.StatusBadRequest, err.Error())
+				return
+			}
+			var movs []Movement
+			db.Preload("User").Where("match_id = ?", m_id).Find(&movs)
+			c.JSON(http.StatusOK, movs)
+		})
+
 		api.GET("/:id", func(c *gin.Context) {
 			m_id, _ := strconv.Atoi(c.Param("id"))
 			var match Match
-			if err := db.Preload("Players").Where("ID = ?", m_id).First(&match).Error; err != nil {
+			if err := db.Preload("Players").First(&match, m_id).Error; err != nil {
 				c.String(http.StatusBadRequest, err.Error())
 				return
 			}
@@ -151,7 +175,7 @@ func attachMatchAPI(router *gin.Engine) {
 		api.DELETE("/:id", func(c *gin.Context) {
 			m_id, _ := strconv.Atoi(c.Param("id"))
 			var match Match
-			if err := db.Where("ID = ?", m_id).First(&match).Error; err != nil {
+			if err := db.First(&match, m_id).Error; err != nil {
 				c.String(http.StatusBadRequest, err.Error())
 				return
 			}
@@ -170,7 +194,7 @@ func attachMatchAPI(router *gin.Engine) {
 
 			m_id, _ := strconv.Atoi(c.Param("id"))
 			var match Match
-			if err := db.Preload("Players").Where("ID = ?", m_id).First(&match).Error; err != nil {
+			if err := db.Preload("Players").First(&match, m_id).Error; err != nil {
 				c.String(http.StatusBadRequest, err.Error())
 				return
 			}

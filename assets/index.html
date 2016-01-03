@@ -8,7 +8,9 @@
     <link href='https://fonts.googleapis.com/css?family=Roboto:400,500,300,300italic,400italic,500italic' rel='stylesheet' type='text/css'>
   </head>
   <style type="text/css">
-  body {font-family: 'Roboto', sans-serif;}
+  body {font-family: 'Roboto', sans-serif;
+    background: #EAEEEE;
+  }
   .user,
   #matches > div,
   #details > a,
@@ -18,26 +20,26 @@
   	float:left;
   	margin:10px;
   	padding:10px;
-  	background: #CAE2E0;
-  	color:#102B0F;
-  	box-shadow: 0px 0px 15px #ccc;
+  	background: #4779FF;
+  	color:#fff;
   }
-  #matches,#players,#sep {clear:both;}
+  #matches,#players,#sep,#movements {clear:both;}
   #sep {
     height:20px;
     margin-bottom: 40px;
     border-bottom: 1px solid #ccc;
   }
   #matches > div {
-  	background: #F3F1BD;
+  	background: #49A122;
   }
+  input {border:0px;padding:3px;}
   #pool {
     background: #F36148;
     padding:20px;
     font-size: 30px;
     color:white;
     text-align: center;
-    margin-bottom: 30px ;
+    margin-bottom: 20px ;
   }
   .user,
   #matches > div {cursor:pointer;}
@@ -85,10 +87,48 @@
   #new-match {
     text-decoration: none;
     background:#FFC609;
-    display: none;
   }
+  #possible-users {display: none;}
   #users .user.selected {
     background: #81D1FF;
+  }
+  #details table {
+    width:100%;
+  }
+  #movements {
+    color:#102B0F;
+    background: #fafafa;
+    margin:auto;
+    width:96%;
+    margin-top: 100px;
+    padding:10px;
+  }
+  #details table td,
+  #details table th {
+    border-right:1px solid gray;
+    padding:0;
+    text-align:center;
+    border-bottom:1px solid #ccc;
+    padding:5px;
+  }
+  #details table th {
+    padding-bottom:5px;
+  }
+  #details table tr:last-child td {
+    border-bottom:0;
+    padding:0px;
+  }
+  #details table td:last-child,
+  #details table th:last-child {
+    border-right:0;
+  }
+  ul {list-style: none;padding:0;margin:0;}
+  ul li {margin-top:5px;}
+  #details table td {
+    vertical-align: top;
+  }
+  #footer {
+    font-size: 90%;
   }
   </style>
   <script type="text/javascript">
@@ -112,8 +152,8 @@
 
       function NewUser(u,showAmount){
         text = u.Name;
-        if (showAmount && u.Amount!=undefined) {
-          text += " <strong>"+u.Amount+"</strong>";
+        if (showAmount) {
+          text += " <strong>"+(u.Amount||"")+"</strong>";
         } else {
           text += " <a href='#'>&#10007;</a>";
         }
@@ -123,23 +163,58 @@
 	  	function loadMatches(){
 	  		matches.html("");
 	  		$.getJSON("/api/matches/",function(response){
+          var lastmatch;
 	  			response.forEach(function(m){
+            lastmatch = m;
 	  				var d = moment(m.CreatedAt)
             var text = d.calendar()+" ("+m.Players.length+") <a href='#'>&#10007;</a>";
 	  				var nm = $("<div>").html(text).data("match_id",m.ID);
 	  				matches.append(nm);
 	  			});
+          matchDetails(lastmatch);
 	  		});
 	  	}
 
       function matchDetails(match){
         details.data("match-id",match.ID);
-        players = details.find("#players");
+        var players = details.find("#players");
         players.html("");
+        var movs = details.find("#movements table");
+        movs.html("");
+        var tr_head = $("<tr>");
+        var tr_data = $("<tr>"); 
+        var tr_tot = $("<tr>"); 
+        var movsMap = {};
         match.Players.forEach(function(u){
             players.append(NewUser(u,true));
+            tr_head.append($("<th>").text(u.Name));
+            var ul = $("<ul>");
+            var tot = $("<strong>");
+            tr_data.append(
+              $("<td>").append(ul)
+            );
+            tr_tot.append(
+              $("<td>").append(tot)
+            );
+            movsMap[u.ID]={ul:ul,tot:tot};
         });
+        movs.append(tr_head,tr_tot,tr_data);
         details.find("#pool > strong").text(match.Pool);
+
+        $.getJSON("/api/matches/"+match.ID+"/movements",function(data){
+          $(data).each(function(i,mov){
+            movsMap[mov.User.ID].ul.append(
+              $("<li>").text(mov.Amount)
+            );  
+            tot = parseInt(movsMap[mov.User.ID].tot.text());
+            if(isNaN(tot)){
+              tot=0;
+            }
+            tot+=mov.Amount;
+            movsMap[mov.User.ID].tot.text(tot);
+          });
+        });
+
         details.show();
       }
 
@@ -189,6 +264,8 @@
   				method:"DELETE",
   				success:function(){
 	  				mtd.detach();
+            details.hide();
+            loadMatches();
 	  			}
   			});
   		});
@@ -264,6 +341,7 @@
 
 
       $("#new-match").click(function(){
+        $("#possible-users").toggle();
         var user_ids=[];
         $("#users .user.selected").each(function(i,u){
           user_ids.push(parseInt($(u).data("user_id")));
@@ -282,17 +360,21 @@
       <div id="pool">Bestia: <strong></strong></div>
       <div id="players"></div>
       <a href="#" id="conta">Conta</a>
+      <div id="movements"><table></table></div>
       <div id="sep"></div>
     </div>
-  	<div id="matches"></div>
-  	<div id="users"></div>
-  	<div id="new">
-	  	<form id="new-user" action="/api/users/" method="post">
-	  		<input id="name" type="text" name="name" placeholder="Name for new player"/>
-	  	</form>
-  	</div>
-
-    <a href="#" id="new-match">Nuova Partita</a>
+    <div id="footer">
+    	<div id="matches"></div>
+      <a href="#" id="new-match">Nuova Partita</a>
+      <div id="possible-users">
+    	  <div id="users"></div>
+      	<div id="new">
+    	  	<form id="new-user" action="/api/users/" method="post">
+    	  		<input id="name" type="text" name="name" placeholder="Nuovo giocatore"/>
+    	  	</form>
+      	</div>
+      </div>
+    </div>
   	
   </body>	
 </html>
